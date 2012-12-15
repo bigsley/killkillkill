@@ -2,12 +2,14 @@
 (function() {
 
   $(function() {
-    var Bullet, animate, canvas, clearBlack, clearScreen, context, counter, drawBackground, game, hero, images, imgSrcs, keyState, loadedImages, name, numImages, speed, src, start, startScreen, writeText;
+    var Bullet, animate, backgroundWidth, backgroundX, baddie, canvas, clearBlack, clearScreen, context, counter, drawBackground, game, hero, images, imgSrcs, keyState, loadedImages, name, numImages, soundtrack, speed, src, start, startAnimation, startScreen, writeText;
+    backgroundX = 0;
+    backgroundWidth = 240;
     Bullet = function(x, y, direction) {
       this.x = x;
       this.y = y;
-      this.width = 4;
-      this.height = 4;
+      this.width = 6;
+      this.height = 6;
       this.direction = direction;
       this.speed = 15;
       this.draw = function() {
@@ -15,7 +17,7 @@
         image = images['bullets'];
         console.log(this.x);
         console.log(this.y);
-        return context.drawImage(image, 267, 487, this.width, this.height, this.x, 480 - this.y - this.height, this.width, this.height);
+        return context.drawImage(image, 265, 487, this.width, this.height, this.x, 480 - this.y - this.height, this.width, this.height);
       };
       this.update = function() {
         if (this.direction === 'left') {
@@ -30,14 +32,48 @@
       };
       return this;
     };
-    hero = {
-      self: hero,
-      x: 450,
-      y: 10,
-      speed: 4,
+    baddie = {
+      self: baddie,
+      x: 800,
+      y: 30,
+      speed: 3,
       velocity: 0,
       state: 'leftStand',
-      drawState: 'leftStand',
+      drawState: 'rightStand',
+      states: {
+        leftStand: [82, 16, 28, 38],
+        rightStand: [146, 16, 28, 38]
+      },
+      update: function() {
+        if (counter % 200 < 100) {
+          return baddie.turnLeft();
+        } else {
+          return baddie.turnRight();
+        }
+      },
+      turnLeft: function() {
+        return baddie.drawState = baddie.state = 'leftStand';
+      },
+      turnRight: function() {
+        return baddie.drawState = baddie.state = 'rightStand';
+      },
+      draw: function() {
+        var height, image, state, width;
+        image = images['baddies'];
+        state = baddie.states[baddie.drawState];
+        width = state[2];
+        height = state[3];
+        return context.drawImage(image, state[0], state[1], width, height, baddie.x, 480 - baddie.y - height, width, height);
+      }
+    };
+    hero = {
+      self: hero,
+      x: 50,
+      y: 30,
+      speed: 4,
+      velocity: 0,
+      state: 'rightStand',
+      drawState: 'rightStand',
       shooting: false,
       shootSpeed: 6,
       shootCounter: 0,
@@ -59,10 +95,35 @@
       },
       leftRunLoop: ['leftRun1', 'leftRun2', 'leftRun3', 'leftRun4', 'leftRun5', 'leftRun3'],
       rightRunLoop: ['rightRun1', 'rightRun2', 'rightRun3', 'rightRun4', 'rightRun5', 'rightRun3'],
+      width: function() {
+        return hero.states[hero.drawState][2];
+      },
       update: function() {
         var offset;
         hero.x += hero.velocity;
-        if ((hero.x % 5) === 0) {
+        if (hero.x < 0) {
+          hero.x = 0;
+        }
+        if (hero.x + hero.width() > canvas.width()) {
+          hero.x = canvas.width() - hero.width();
+        }
+        if (hero.velocity > 0 && hero.x + hero.width() / 2 > 320 && hero.x + hero.width() / 2 + backgroundX < 640) {
+          hero.x -= hero.velocity;
+          backgroundX += hero.velocity;
+          baddie.x -= hero.velocity;
+        }
+        if (hero.velocity < 0 && hero.x - hero.width() / 2 < 320 && backgroundX > 0) {
+          hero.x -= hero.velocity;
+          backgroundX += hero.velocity;
+          baddie.x -= hero.velocity;
+        }
+        if (backgroundX < 0) {
+          backgroundX = 0;
+        }
+        if (backgroundX > 320) {
+          backgroundX = 320;
+        }
+        if ((counter % 5) === 0) {
           hero.nextState();
         }
         if (hero.shooting) {
@@ -71,7 +132,7 @@
             if (hero.state === 'leftRun' || hero.state === 'leftStand') {
               hero.bullets.push(new Bullet(hero.x - 4, hero.y + offset, 'left'));
             } else if (hero.state === 'rightRun' || hero.state === 'rightStand') {
-              hero.bullets.push(new Bullet(hero.x + hero.states[hero.drawState][2], hero.y + offset, 'right'));
+              hero.bullets.push(new Bullet(hero.x + hero.width(), hero.y + offset, 'right'));
             }
           }
         }
@@ -156,13 +217,13 @@
     drawBackground = function() {
       var image;
       image = images['bg'];
-      return context.drawImage(image, 0, 0);
+      return context.drawImage(image, backgroundX, backgroundWidth, 320, 240, 0, 0, 640, 480);
     };
     imgSrcs = {
       hero: 'img/ContraSheet1.gif',
       bg: 'img/bg.png',
       bullets: 'img/ContraSheet8.gif',
-      baddies: 'img/ContraSheet3.gif'
+      baddies: 'img/ContraSheet2.gif'
     };
     images = {};
     loadedImages = 0;
@@ -181,8 +242,7 @@
       };
       images[name].src = src;
     }
-    counter = 0;
-    speed = 1;
+    soundtrack = new Audio("audio/contra-bases.mp3");
     canvas = $('#killkillkill');
     context = window.context = canvas[0].getContext('2d');
     keyState = void 0;
@@ -265,7 +325,8 @@
         var firstThree, lastFour, secondThree, stringVal;
         clearBlack();
         writeText('Please enter your', 50, 80);
-        writeText('phone #:', 50, 140);
+        writeText('phone # and hit', 50, 140);
+        writeText('Enter:', 50, 200);
         if (digits.length > 0) {
           stringVal = "";
           firstThree = digits.slice(0, 3);
@@ -285,7 +346,7 @@
             stringVal += "-";
             stringVal += lastFour.join("");
           }
-          writeText(stringVal, 40, 250);
+          writeText(stringVal, 40, 300);
         }
         if (!complete) {
           return window.webkitRequestAnimationFrame(function() {
@@ -296,7 +357,13 @@
         }
       };
       thanks = function() {
-        console.log('?');
+        $.ajax({
+          url: 'http://localhost:3000/phone_numbers',
+          data: {
+            number: digits.join('')
+          },
+          type: 'post'
+        });
         clearBlack();
         writeText('Thanks!', 50, 80);
         return setTimeout(finish, 2000);
@@ -310,19 +377,33 @@
         writeText('KILLKILLKILL!!!!!!!', 50, 380, 'red');
         writeText('KILLKILLKILL!!!!!!!', 50, 440, 'red');
         writeText('KILLKILLKILL!!!!!!!', 50, 500, 'red');
-        start = false;
-        game = true;
-        return setTimeout(animate, 2000);
+        return setTimeout(startAnimation, 2000);
       };
       return firstScreen();
     };
+    startAnimation = function() {
+      game = true;
+      start = false;
+      return animate();
+    };
+    counter = 0;
+    speed = 1;
     return animate = function() {
       counter += 1;
       if ((counter % speed) === 0) {
         clearScreen();
         drawBackground();
         hero.update();
+        baddie.update();
         hero.draw();
+        baddie.draw();
+      }
+      if (counter < 150) {
+        context.font = 'bold 16pt Courier New';
+        context.fillStyle = 'white';
+        context.fillText('Bobby Brasher, 19, sent here to find...', 30, 30);
+        context.fillText('and kill', 60, 60);
+        context.fillText('The Enemy...', 90, 90);
       }
       return window.webkitRequestAnimationFrame(function() {
         return animate();

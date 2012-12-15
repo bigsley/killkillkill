@@ -4,4 +4,4 @@
 # If you change this key, all old signed cookies will become invalid!
 # Make sure the secret is at least 30 characters and all random,
 # no regular words or you'll be exposed to dictionary attacks.
-Killkillkillapp::Application.config.secret_token = '3482ec189736466992929a94a9c96f178f07adb8cab18a36147c0846a9f1e68fe5bcfbb132e118d5f597d3c3dcd8634896af21e52abf3341983bcff88279d55c'
+Killkillkillapp::Application.config.secret_token = 'ed972b1f632796439e9df9361883538616f7e16e26ea6072491f127f8521f07c9c9ffc2844551028f8c96287c29012ef0c318622c591c5efd0e4c07002603354'

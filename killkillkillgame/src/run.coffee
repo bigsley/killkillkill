@@ -1,7 +1,12 @@
-$ ->
-  backgroundX = 0
-  backgroundWidth = 240
+start = true
+started = false
+game = false
+complete = false
 
+digits = []
+backgroundX = 0
+
+$ ->
   Bullet = (x, y, direction) ->
     this.x = x
     this.y = y
@@ -12,8 +17,6 @@ $ ->
 
     this.draw = ->
       image = images['bullets']
-      console.log(this.x)
-      console.log(this.y)
 
       context.drawImage(image, 265, 487, this.width, this.height, this.x, 480 - this.y - this.height, this.width, this.height)
 
@@ -24,8 +27,11 @@ $ ->
         this.x += this.speed
 
       if this.x + this.width < 0 || this.x > canvas.width()
-        console.log('deletin')
         hero.bullets = _(hero.bullets).without(this)
+
+      if this.x > baddie.x && this.x < baddie.x + baddie.width()
+        baddie.dieing = true
+        endGame()
 
     return this
 
@@ -35,18 +41,23 @@ $ ->
     y: 30
     speed: 3
     velocity: 0
-    state: 'leftStand'
+    state: 'rightStand'
     drawState: 'rightStand'
+    dieing: false
 
     states:
       leftStand: [82, 16, 28, 38]
       rightStand: [146, 16, 28, 38]
+      fallingOver: [90, 193, 23, 25]
+      fallOver: [113, 200, 25, 17]
+      lieDown: [5, 205, 40, 12]
 
     update: ->
-      if counter % 200 < 100
-        baddie.turnLeft()
-      else
-        baddie.turnRight()
+      if !baddie.dieing
+        if counter % 200 < 100
+          baddie.turnLeft()
+        else
+          baddie.turnRight()
 
     turnLeft: ->
       baddie.drawState = baddie.state = 'leftStand'
@@ -54,12 +65,26 @@ $ ->
     turnRight: ->
       baddie.drawState = baddie.state = 'rightStand'
 
+    fallingOver: ->
+      baddie.drawState = 'fallingOver'
+
+    fallOver: ->
+      baddie.drawState = 'fallOver'
+
+    lieDown: ->
+      baddie.drawState = 'lieDown'
+
+
+    width: ->
+      baddie.states[baddie.drawState][2]
+
     draw: ->
       image = images['baddies']
       state = baddie.states[baddie.drawState]
 
       width = state[2]
       height = state[3]
+
       context.drawImage(image, state[0], state[1], width, height, baddie.x, 480 - baddie.y - height, width, height)
 
   hero =
@@ -71,7 +96,7 @@ $ ->
     state: 'rightStand'
     drawState: 'rightStand'
     shooting: false
-    shootSpeed: 6
+    shootSpeed: 20
     shootCounter: 0
     animLoop: []
     bullets: []
@@ -89,6 +114,8 @@ $ ->
       rightRun3: [190, 140, 20, 30]
       rightRun4: [169, 135, 18, 36]
       rightRun5: [145, 135, 18, 36]
+      crouch: [12, 170, 20, 24]
+      fetal: [74, 172, 24, 20]
 
     leftRunLoop:
       ['leftRun1', 'leftRun2', 'leftRun3', 'leftRun4', 'leftRun5', 'leftRun3']
@@ -109,12 +136,12 @@ $ ->
 
       if hero.velocity > 0 && hero.x + hero.width() / 2 > 320 && hero.x + hero.width() / 2 + backgroundX < 640
         hero.x -= hero.velocity
-        backgroundX += hero.velocity
+        backgroundX += hero.velocity / 2
         baddie.x -= hero.velocity
 
       if hero.velocity < 0 && hero.x - hero.width() / 2 < 320 && backgroundX > 0
         hero.x -= hero.velocity
-        backgroundX += hero.velocity
+        backgroundX += hero.velocity / 2
         baddie.x -= hero.velocity
 
       backgroundX = 0 if backgroundX < 0
@@ -127,15 +154,24 @@ $ ->
       if hero.shooting
         if hero.shootCounter % hero.shootSpeed == 0
           offset = 22
+          gunshot.play()
           if hero.state == 'leftRun' || hero.state == 'leftStand'
             hero.bullets.push(new Bullet(hero.x - 4, hero.y + offset, 'left'))
           else if hero.state == 'rightRun' || hero.state == 'rightStand'
             hero.bullets.push(new Bullet(hero.x + hero.width(), hero.y + offset, 'right'))
+
+
       hero.shootCounter++
 
       _(hero.bullets).each (bullet) ->
         bullet.update()
         bullet.draw()
+
+    crouch: ->
+      hero.drawState = 'crouch'
+
+    fetal: ->
+      hero.drawState = 'fetal'
 
     startLeft: ->
       if hero.state != 'leftRun'
@@ -206,12 +242,12 @@ $ ->
 
   drawBackground = ->
     image = images['bg']
-    context.drawImage(image, backgroundX, backgroundWidth, 320, 240, 0, 0, 640, 480)
+    context.drawImage(image, backgroundX, 0, 320, 240, 0, 0, 640, 480)
 
   # loading images
   imgSrcs =
     hero: 'img/ContraSheet1.gif'
-    bg: 'img/bg.png'
+    bg: 'img/bg_a.jpg'
     bullets: 'img/ContraSheet8.gif'
     baddies: 'img/ContraSheet2.gif'
 
@@ -232,9 +268,13 @@ $ ->
 
   # audio
   soundtrack = new Audio("audio/contra-bases.mp3");
-
+  gunshot = new Audio("audio/gun_shot.mp3");
+  scream = new Audio("audio/scream_and_die.mp3");
+  bonecrush = new Audio("audio/bone_crush.mp3");
+  bloodsquirt = new Audio("audio/blood_squirts.mp3");
 
   canvas = $('#killkillkill')
+  opacity = 0.0
   context = window.context = canvas[0].getContext('2d');
 
   keyState = undefined
@@ -247,6 +287,16 @@ $ ->
         hero.startRight()
       else if e.keyCode == 32
         hero.shoot()
+    else if start
+      if e.keyCode == 32
+        console.log('guh?')
+        started = true
+      if e.keyCode > 47 && e.keyCode < 58 && digits.length < 11
+        digits.push(e.keyCode - 48)
+      else if e.keyCode == 8
+        digits.pop()
+      else if e.keyCode == 13 && digits.length == 10
+        complete = true
 
   $('body').keyup (e) ->
     if game
@@ -257,8 +307,9 @@ $ ->
       else if e.keyCode = 32
         hero.stopShooting()
 
-  clearBlack = ->
-    context.fillStyle = 'black'
+  clearBlack = (op) ->
+    op = 1.0 if !op
+    context.fillStyle = "rgba(0, 0, 0, #{op})"
     context.rect(0, 0, canvas.width(), canvas.height());
     context.fill()
 
@@ -268,12 +319,8 @@ $ ->
     context.fillStyle = color
     context.fillText(text, x, y)
 
-  start = true
-  game = false
 
   startScreen = ->
-    started = false
-
     firstScreen = ->
       clearBlack()
       writeText('Hit Space to Start', 30, 250)
@@ -291,20 +338,6 @@ $ ->
     welcome = ->
       writeText('KILLKILLKILL!!!', 50, 150)
       setTimeout(enterPhone, 2000)
-
-    complete = false
-    digits = []
-
-    $('body').keydown (e) ->
-      if e.keyCode == 32
-        started = true
-      if e.keyCode > 47 && e.keyCode < 58 && digits.length < 11
-        digits.push(e.keyCode - 48)
-      else if e.keyCode == 8
-        digits.pop()
-      else if e.keyCode == 13 && digits.length == 10
-        console.log('yo?')
-        complete = true
 
     enterPhone = ->
       clearBlack()
@@ -345,7 +378,6 @@ $ ->
       setTimeout(finish, 2000)
 
     finish = ->
-      console.log("????")
       writeText('KILLKILLKILL!!!!!!!', 50, 140, 'red')
       writeText('KILLKILLKILL!!!!!!!', 50, 200, 'red')
       writeText('KILLKILLKILL!!!!!!!', 50, 260, 'red')
@@ -369,34 +401,139 @@ $ ->
   startAnimation = ->
     game = true
     start = false
-    #soundtrack.play()
+    soundtrack.play()
     animate()
 
   counter = 0
   speed = 1
 
   animate = ->
-    # slowdown
-    counter += 1
+    if game
+      # slowdown
+      counter += 1
 
-    if (counter % speed) == 0
-      # clear
-      clearScreen()
-      drawBackground()
+      if (counter % speed) == 0
+        # clear
+        clearScreen()
+        drawBackground()
 
-      hero.update()
-      baddie.update()
+        hero.update()
+        baddie.update()
 
-      hero.draw()
-      baddie.draw()
+        hero.draw()
+        baddie.draw()
 
-    if (counter < 150)
-      context.font = 'bold 16pt Courier New'
+      if (counter < 150)
+        context.font = 'bold 16pt Courier New'
+        context.fillStyle = 'white'
+        context.fillText('Bobby Brasher, 19, sent here to find...', 30, 30)
+        context.fillText('and kill...', 60, 60)
+        context.fillText('The Enemy...', 90, 90)
+
+      if (counter >= 150 && counter < 225)
+        context.font = 'bold 16pt Courier New'
+        context.fillStyle = 'white'
+        context.fillText('Left and Right to move!', 30, 30)
+        context.fillText('Hold spacebar to Kill!!!', 30, 60)
+
+      # loop
+      window.webkitRequestAnimationFrame ->
+        animate();
+
+  ending = false
+
+  endCounter = undefined
+
+  endGame = ->
+    if !ending
+      ending = true
+      game = false
+      start = false
+      hero.shooting = false
+      baddie.fallingOver()
+      endCounter = counter
+      soundtrack.pause()
+      soundtrack.load()
+      scream.play()
+      sendPhoneNumber()
+      hero.stopRight()
+
+      animateDeath()
+
+
+  restart = false
+
+  animateDeath = ->
+    # clear
+    clearScreen()
+    drawBackground()
+    counter++
+
+    timeSince = counter - endCounter
+
+
+    if timeSince == 75
+      baddie.fallOver()
+      bonecrush.play()
+
+    if timeSince == 150
+      baddie.lieDown()
+      bloodsquirt.play()
+
+    if timeSince > 275 && timeSince < 325
+      context.font = 'bold 30pt Courier New'
       context.fillStyle = 'white'
-      context.fillText('Bobby Brasher, 19, sent here to find...', 30, 30)
-      context.fillText('and kill', 60, 60)
-      context.fillText('The Enemy...', 90, 90)
+      context.fillText('"My god..."', 50, 100)
 
-    # loop
+    if timeSince > 375 && timeSince < 475
+      context.font = 'bold 30pt Courier New'
+      context.fillStyle = 'white'
+      context.fillText('"What have I done?"', 50, 100)
+
+    if timeSince == 475
+      hero.crouch()
+
+    if timeSince > 525 && timeSince < 625
+      context.font = 'bold 30pt Courier New'
+      context.fillStyle = 'white'
+      context.fillText('"He was a man..."', 50, 100)
+
+    if timeSince == 625
+      hero.fetal()
+
+    if timeSince > 700
+      opacity += 0.01
+
+      clearBlack(opacity)
+      if opacity > 1.0
+        restart = true
+        setTimeout(reset, 100)
+
+    hero.update()
+    baddie.update()
+    hero.draw()
+    baddie.draw()
+
     window.webkitRequestAnimationFrame ->
-      animate();
+      if !restart
+        animateDeath()
+
+  reset = ->
+    console.log('resetting!')
+    restart = false
+    ending = false
+    game = false
+    start = true
+    started = false
+    complete = false
+    hero.x = 50
+    hero.state = 'rightStand'
+    hero.drawState = 'rightStand'
+    baddie.x = 800
+    baddie.state = 'rightStand'
+    baddie.drawState = 'rightStand'
+    baddie.dieing = false
+    backgroundX = 0
+    digits = []
+    startScreen()
+
